@@ -38,7 +38,7 @@ def analyze_clutch_player(player_name, seasons=None):
         'player_info': None,
         'clutch_stats': [],
         'shot_distance': [],
-        'regular_vs_clutch': []
+        'regular_vs_clutch_': []
     }
     
     # 1. Get player info (physical attributes)
@@ -121,6 +121,8 @@ def analyze_clutch_player(player_name, seasons=None):
                     'tov': player_clutch['TOV'].iloc[0],
                     'stl': player_clutch['STL'].iloc[0],
                     'blk': player_clutch['BLK'].iloc[0],
+                    'dreb': player_clutch['DREB'].iloc[0],
+                    'reb': player_clutch['REB'].iloc[0],
                     'plus_minus': player_clutch['PLUS_MINUS'].iloc[0]
                 }
                 
@@ -226,7 +228,7 @@ def analyze_clutch_player(player_name, seasons=None):
                     #         if col in clutch_per_game.columns:
                     #             clutch_per_game[col] = clutch_per_game[col] / gp
                     
-                    season_data['regular_vs_clutch'] = {
+                    season_data['regular_vs_clutch_'] = {
                         'regular': {
                             'pts': player_regular['PTS'].iloc[0],
                             'fg_pct': player_regular['FG_PCT'].iloc[0],
@@ -234,7 +236,11 @@ def analyze_clutch_player(player_name, seasons=None):
                             'ft_pct': player_regular['FT_PCT'].iloc[0],
                             'ast': player_regular['AST'].iloc[0],
                             'tov': player_regular['TOV'].iloc[0],
-                            'ast_to_tov': player_regular['AST'].iloc[0] / player_regular['TOV'].iloc[0] if player_regular['TOV'].iloc[0] > 0 else player_regular['AST'].iloc[0]
+                            'ast_to_tov': player_regular['AST'].iloc[0] / player_regular['TOV'].iloc[0] if player_regular['TOV'].iloc[0] > 0 else player_regular['AST'].iloc[0],
+                            'dreb': player_regular['DREB'].iloc[0],
+                            'reb': player_regular['REB'].iloc[0],
+                            'stl': player_regular['STL'].iloc[0],  # Added steals
+                            'blk': player_regular['BLK'].iloc[0]   # Added blocks
                         },
                         'clutch': {
                             'pts': player_clutch['PTS'].iloc[0],
@@ -243,7 +249,11 @@ def analyze_clutch_player(player_name, seasons=None):
                             'ft_pct': player_clutch['FT_PCT'].iloc[0],
                             'ast': player_clutch['AST'].iloc[0],
                             'tov': player_clutch['TOV'].iloc[0],
-                            'ast_to_tov': season_data['clutch_basic']['ast_to_tov']
+                            'ast_to_tov': season_data['clutch_basic']['ast_to_tov'],
+                            'dreb': player_clutch['DREB'].iloc[0],
+                            'reb': player_clutch['REB'].iloc[0],
+                            'stl': player_clutch['STL'].iloc[0],  # Added steals
+                            'blk': player_clutch['BLK'].iloc[0]   # Added blocks
                         }
                     }
                 
@@ -315,11 +325,11 @@ def visualize_player_analysis(results):
         count = 0
         
         for season_data in results['clutch_stats']:
-            if 'regular_vs_clutch' in season_data:
+            if 'regular_vs_clutch_' in season_data:
                 count += 1
                 for m in metrics:
-                    regular_avgs[m] += season_data['regular_vs_clutch']['regular'][m]
-                    clutch_avgs[m] += season_data['regular_vs_clutch']['clutch'][m]
+                    regular_avgs[m] += season_data['regular_vs_clutch_']['regular'][m]
+                    clutch_avgs[m] += season_data['regular_vs_clutch_']['clutch'][m]
         
         # Calculate the averages
         if count > 0:
@@ -474,6 +484,62 @@ def visualize_player_analysis(results):
     plt.title(f"{player_name}'s Advanced Clutch Metrics")
     plt.xticks(x, seasons, rotation=45)
     plt.legend()
+    
+    plt.tight_layout()
+    plt.show()
+
+
+    # 5. Defensive Metrics in the clutch
+    plt.figure(figsize=(12, 6))
+    
+    # Prepare defensive stats data
+    def_stats = ['stl', 'blk', 'dreb', 'reb']
+    def_labels = ['Steals', 'Blocks', 'Defensive Rebounds', 'Total Rebounds'] 
+    
+    # Calculate averages across seasons
+    clutch_def_stats = []
+    regular_def_stats = []
+    
+    for stat in def_stats:
+        # Clutch stats
+        clutch_avg = np.mean([season_data['clutch_basic'][stat] 
+                            for season_data in results['clutch_stats'] 
+                            if 'clutch_basic' in season_data])
+        clutch_def_stats.append(clutch_avg)
+        
+        # Regular stats
+        regular_avg = np.mean([season_data['regular_vs_clutch_']['regular'][stat]
+                             for season_data in results['clutch_stats']
+                             if 'regular_vs_clutch_' in season_data])
+        regular_def_stats.append(regular_avg)
+    
+    x = range(len(def_stats))
+    width = 0.35
+    
+    # Create grouped bar chart
+    plt.bar([i - width/2 for i in x], regular_def_stats, width, label='Regular', 
+            color='darkgreen', alpha=0.7)
+    plt.bar([i + width/2 for i in x], clutch_def_stats, width, label='Clutch',
+            color='purple', alpha=0.7)
+    
+    plt.xlabel('Defensive Statistics')
+    plt.ylabel('Per Game Average (Per 36 Min)')
+    seasons_range = f"{results['seasons'][0]} to {results['seasons'][-1]}"
+    plt.title(f"{player_name}'s Regular vs Clutch Defensive Stats ({seasons_range})")
+    
+    plt.xticks(x, def_labels, rotation=45)
+    plt.legend()
+    
+    # Add value labels on top of bars
+    def autolabel(rects):
+        for rect in rects:
+            height = rect.get_height()
+            plt.text(rect.get_x() + rect.get_width()/2., height,
+                    f'{height:.1f}',
+                    ha='center', va='bottom')
+    
+    autolabel(plt.gca().patches[:len(def_stats)])  # Regular stats
+    autolabel(plt.gca().patches[len(def_stats):])  # Clutch stats
     
     plt.tight_layout()
     plt.show()
